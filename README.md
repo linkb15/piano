@@ -1,10 +1,8 @@
-# Farm + Solid + TailwindCSS + ToneJS
+# Open source Piano / Synthesia
 
-This template should help you start developing using Solid and TypeScript in Farm.
-
-<https://musicjoeyoung.medium.com/build-a-piano-with-tone-js-618e2403d9de>
-
-[FIGMA](https://www.figma.com/community/file/1220022786856032423/ios-design-with-midjourney)
+> Reading: [Initial article of Tone.JS tutorial 🔗](https://musicjoeyoung.medium.com/build-a-piano-with-tone-js-618e2403d9de) that I read to build this.
+>
+> Design: [Figma 🔗](https://www.figma.com/community/file/1220022786856032423/ios-design-with-midjourney)
 
 Technology Used:
 
@@ -15,6 +13,13 @@ Technology Used:
 - TailwindCSS
 - Ark UI
 - Park UI
+
+## Features
+
+- [x] Play piano with keyboard
+- [x] Play piano with mouse
+- [x] Upload your MIDI file and start seeing the notes falling down
+- [x] Transpose notes up and down
 
 ## Setup
 
@@ -49,3 +54,12 @@ Clear persistent cache local files
 ```bash
 pnpm clean
 ```
+
+## Inspired by
+
+- [synthesia](https://synthesiagame.com/)
+- [sightread/sightread](https://github.com/sightread/sightread)
+- [zeozeozeo/pianofall](https://github.com/zeozeozeo/pianofall)
+- [kevinsqi/react-piano](https://github.com/kevinsqi/react-piano)
+- [felipefialho/piano](https://github.com/felipefialho/piano)
+- [ZaneH/piano-trainer](https://github.com/ZaneH/piano-trainer)

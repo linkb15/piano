@@ -17,10 +17,44 @@ import { Button } from '~/components/ui/button'
 import * as FileUpload from '~/components/ui/file-upload'
 import { IconButton } from '~/components/ui/icon-button'
 import { Kbd } from '~/components/ui/kbd'
+import { NumberInput } from '~/components/ui/number-input'
 import { Slider } from '~/components/ui/slider'
 import { cn } from '~/lib/cn'
 import { type ItemKey, keys } from '~/lib/keys'
 import { piano } from '~/lib/tone.fn'
+
+/**
+ * Transpose the MIDI JSON object by a specified number of semitones.
+ * @param {Object} midiJson - The MIDI JSON object.
+ * @param {number} semitones - The number of semitones to transpose.
+ * @returns {Object} - The transposed MIDI JSON object.
+ */
+function transposeMidiJson(midiJson?: Midi, semitones?: number) {
+  if (!midiJson || !semitones) return
+  // Clone the midiJson object to avoid mutating the original
+  const transposedMidi = midiJson.clone()
+
+  // Loop through each track in the MIDI file
+  for (const track of transposedMidi.tracks) {
+    // Loop through each note in the track
+    for (const note of track.notes) {
+      // Transpose the note's MIDI number
+      note.midi += semitones
+
+      // Ensure the transposed MIDI number is within the valid range (0-127)
+      if (note.midi < 0) {
+        note.midi = 0
+      } else if (note.midi > 127) {
+        note.midi = 127
+      }
+
+      // Optionally, update the note name if needed
+      // note.name = Tone.Frequency(note.midi, "midi").toNote();
+    }
+  }
+
+  return transposedMidi
+}
 
 /**
  * Convert a MIDI note into a pitch.
@@ -95,6 +129,8 @@ const [pianoHeight, setPianoHeight] = createSignal(0)
 
 const [minMidi, setMinMidi] = createSignal<number | undefined>(undefined) // Default to A0
 const [maxMidi, setMaxMidi] = createSignal(108) // Default to C8
+
+const [transpose, setTranspose] = createSignal('0') // Default to C8
 
 piano.volume.value = volume()
 
@@ -191,6 +227,123 @@ function App() {
 
   const translateY = () => currentTime() * 500
 
+  const recreateFallingNotes = (
+    midi: Midi,
+    opts?: {
+      changeMinMax?: boolean
+    }
+  ) => {
+    let _opts = opts || undefined
+
+    if (!_opts) {
+      _opts = {
+        changeMinMax: true,
+      }
+    }
+
+    getTransport().cancel()
+    // getTransport().stop()
+
+    setMidi(midi)
+
+    const allNotes: Note[] = []
+    for (const track of midi.tracks) {
+      for (const note of track.notes) {
+        allNotes.push(note)
+      }
+    }
+
+    if (_opts.changeMinMax) {
+      // Determine the min and max MIDI notes
+      const midiNumbers = allNotes.map((note) => note.midi)
+      setMinMidi(Math.min(...midiNumbers) - 1)
+      setMaxMidi(Math.max(...midiNumbers) + 1)
+
+      console.log({
+        minMidi: Math.min(...midiNumbers),
+        maxMidi: Math.max(...midiNumbers),
+      })
+    }
+
+    updateCanvasSize()
+
+    setDuration(midi.duration)
+
+    getTransport().PPQ = midi.header.ppq
+
+    getTransport().timeSignature = midi.header.timeSignatures[0].timeSignature
+
+    let minOctave = Number.POSITIVE_INFINITY
+    let maxOctave = -1
+
+    getTransport().scheduleRepeat(() => {
+      const current = getTransport().seconds
+      setCurrentTime(current)
+
+      if (canvas) {
+        canvas.style.transform = `rotate(-180deg) scaleX(-1) translateY(${
+          current * -500
+        }px)`
+      }
+    }, 0.01667)
+
+    let trackNumber = 0
+    for (const track of midi.tracks) {
+      let noteNumber = 0
+
+      for (const note of track.notes) {
+        if (minOctave > note.octave) {
+          minOctave = note.octave
+        }
+
+        if (maxOctave < note.octave) {
+          maxOctave = note.octave
+        }
+
+        const trackColor = trackColors[trackNumber % trackColors.length]
+
+        const startTime = Time(note.time).toSeconds()
+        const duration = Time(note.duration).toSeconds()
+
+        const isSharp = isSharpNote(note.midi)
+        // const seq = new Sequence((time, note) => {})
+        getTransport().schedule((time) => {
+          piano.triggerAttackRelease(note.name, duration, time, note.velocity)
+
+          getDraw().schedule(() => {
+            //this callback is invoked from a requestAnimationFrame
+            //and will be invoked close to AudioContext time
+            const keyEl = document.querySelector(
+              `[data-key="${note.name}"`
+            ) as HTMLDivElement
+
+            if (keyEl) {
+              animate(
+                (progress) => {
+                  if (progress === 1) {
+                    keyEl.classList.remove(trackColor)
+                    return
+                  }
+
+                  keyEl.classList.add(trackColor)
+                },
+                { duration: duration }
+              )
+            }
+
+            lastTime = time
+          }, time)
+        }, startTime)
+
+        noteNumber++
+      }
+
+      trackNumber++
+    }
+
+    getTransport().start()
+  }
+
   return (
     <div class=''>
       <div class=''>
@@ -215,177 +368,10 @@ function App() {
                     const reader = new FileReader()
                     reader.onload = (e) => {
                       if (!e.target?.result) return
-                      getTransport().cancel()
-
-                      // piano.releaseAll()
 
                       const midi = new Midi(e.target.result as ArrayBuffer)
                       console.log(midi)
-
-                      setMidi(midi)
-
-                      const allNotes: Note[] = []
-                      for (const track of midi.tracks) {
-                        for (const note of track.notes) {
-                          allNotes.push(note)
-                        }
-                      }
-
-                      // Determine the min and max MIDI notes
-                      const midiNumbers = allNotes.map((note) => note.midi)
-                      setMinMidi(Math.min(...midiNumbers))
-                      setMaxMidi(Math.max(...midiNumbers))
-
-                      console.log({
-                        minMidi: Math.min(...midiNumbers),
-                        maxMidi: Math.max(...midiNumbers),
-                      })
-
-                      updateCanvasSize()
-
-                      setDuration(midi.duration)
-
-                      getTransport().PPQ = midi.header.ppq
-
-                      getTransport().timeSignature =
-                        midi.header.timeSignatures[0].timeSignature
-
-                      let minOctave = Number.POSITIVE_INFINITY
-                      let maxOctave = -1
-
-                      getTransport().scheduleRepeat(() => {
-                        const current = getTransport().seconds
-                        setCurrentTime(current)
-
-                        if (canvas) {
-                          canvas.style.transform = `rotate(-180deg) scaleX(-1) translateY(${
-                            current * -500
-                          }px)`
-                        }
-                      }, 0.01667)
-
-                      let trackNumber = 0
-                      for (const track of midi.tracks) {
-                        let noteNumber = 0
-
-                        for (const note of track.notes) {
-                          if (minOctave > note.octave) {
-                            minOctave = note.octave
-                          }
-
-                          if (maxOctave < note.octave) {
-                            maxOctave = note.octave
-                          }
-
-                          const trackColor =
-                            trackColors[trackNumber % trackColors.length]
-
-                          const startTime = Time(note.time).toSeconds()
-                          const duration = Time(note.duration).toSeconds()
-
-                          const isSharp = isSharpNote(note.midi)
-                          // const seq = new Sequence((time, note) => {})
-                          getTransport().schedule((time) => {
-                            piano.triggerAttackRelease(
-                              note.name,
-                              duration,
-                              time,
-                              note.velocity
-                            )
-
-                            getDraw().schedule(() => {
-                              //this callback is invoked from a requestAnimationFrame
-                              //and will be invoked close to AudioContext time
-                              const keyEl = document.querySelector(
-                                `[data-key="${note.name}"`
-                              ) as HTMLDivElement
-                              if (keyEl) {
-                                animate(
-                                  (progress) => {
-                                    if (progress === 1) {
-                                      keyEl.classList.remove(trackColor)
-                                      return
-
-                                      // return keyEl.removeAttribute('data-state')
-                                    }
-                                    keyEl.classList.add(trackColor)
-                                    // keyEl.setAttribute('data-state', 'active')
-                                  },
-                                  { duration: duration }
-                                )
-                              }
-
-                              // const element = document.createElement('div')
-                              // element.className = `${trackColor} absolute rounded-md${
-                              //   isSharp ? ' brightness-50' : ''
-                              // }`
-
-                              // const whiteKeyWidth = 96 // There are 52 white keys on a standard piano
-                              // const blackKeyWidth = 64
-
-                              // const noteHeight = note.duration * 500
-
-                              // const noteWidth = isSharp
-                              //   ? blackKeyWidth
-                              //   : whiteKeyWidth
-
-                              // const keysCount = countBlackAndWhiteKeys(
-                              //   note.midi,
-                              //   minMidi()
-                              // )
-
-                              // const left =
-                              //   keysCount.whiteKeyCount * whiteKeyWidth
-
-                              // const noteLeft = isSharp
-                              //   ? left - blackKeyWidth / 2
-                              //   : left
-
-                              // element.style.top = `${time * 500}px`
-                              // element.style.left = `${noteLeft}px`
-                              // element.style.width = `${noteWidth}px`
-                              // element.style.height = `${noteHeight}px`
-
-                              // canvas?.appendChild(element)
-
-                              // animate(
-                              //   element,
-                              //   {
-                              //     transform: [
-                              //       'translateY(0px)',
-                              //       `translateY(${canvasHeight()}px)`,
-                              //     ],
-                              //   },
-                              //   {
-                              //     duration: time + note.duration,
-                              //     // duration: note.duration,
-                              //     // delay: note.time - lastTime,
-                              //     easing: 'linear',
-                              //   }
-                              // ).finished.then(() => {
-                              //   element.remove()
-                              // })
-
-                              lastTime = time
-                              // )
-                            }, time)
-
-                            // side effects
-                            // piano.dispatchEvent(
-                            //   new CustomEvent("highlight", { detail: { notes: [note.name] } })
-                            // );
-                            // canvas.dispatchEvent(
-                            //   new CustomEvent("paint", { detail: { notes: [note.name] } })
-                            // );
-                          }, startTime)
-
-                          noteNumber++
-                        }
-
-                        trackNumber++
-                      }
-
-                      getTransport().start(0)
+                      recreateFallingNotes(midi)
                     }
                     reader.readAsArrayBuffer(file)
                     return (
@@ -496,6 +482,26 @@ function App() {
             </Button>
           </div>
 
+          <NumberInput
+            onValueChange={(prop) => {
+              const currentTranspose = Number(transpose())
+
+              const diff = currentTranspose - prop.valueAsNumber
+              setTranspose(prop.value)
+              console.log({ diff }, prop.valueAsNumber)
+              // transpose all tracks notes
+              if (!currentMidi()) return
+
+              const transposedMidi = transposeMidiJson(currentMidi(), diff)
+
+              if (!transposedMidi) return
+
+              recreateFallingNotes(transposedMidi, { changeMinMax: false })
+            }}
+            value={transpose()}>
+            Transpose
+          </NumberInput>
+
           <div class='flex flex-col'>
             <div class='flex justify-center overflow-hidden'>
               <div
@@ -603,34 +609,6 @@ function App() {
             </div>
           </div>
         </div>
-
-        {/* <div class='relative'>
-          <For each={currentMidi()?.tracks}>
-            {(track) => {
-              const octaves = track.notes.map((note) => note.octave)
-              const highestOctave = Math.max(...octaves)
-              const lowestOctave = Math.min(...octaves)
-
-              console.log({ highestOctave, lowestOctave })
-
-              return (
-                <div class=''>
-                  <For each={track.notes}>
-                    {(note) => {
-                      return (
-                        <div class=''>
-                          {note.name} {note.duration} {note.time} {note.bars}
-                        </div>
-                      )
-                    }}
-                  </For>
-                </div>
-              )
-            }}
-          </For>
-        </div> */}
-
-        {/* <Waterfall /> */}
       </div>
     </div>
   )
