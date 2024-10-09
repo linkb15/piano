@@ -1,34 +1,30 @@
 {
-  "name": "solid-template",
+  "name": "solid",
+  "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "farm start",
-    "start": "farm start",
-    "build": "farm build",
-    "preview": "farm preview",
-    "clean": "farm clean"
+    "dev": "rsbuild dev --open",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
   },
   "dependencies": {
-    "@ark-ui/solid": "^3.5.0",
+    "@ark-ui/solid": "^4.2.0",
     "@park-ui/tailwind-plugin": "^0.20.1",
     "@tonejs/midi": "^2.0.28",
     "clsx": "^2.1.1",
-    "lucide-solid": "^0.401.0",
+    "lucide-solid": "^0.451.0",
     "motion": "^10.18.0",
-    "pixi.js": "^8.2.2",
-    "solid-js": "^1.8.16",
-    "tailwind-merge": "^2.4.0",
+    "solid-js": "^1.8.22",
+    "tailwind-merge": "^2.5.3",
     "tailwind-variants": "^0.2.1",
     "tone": "^15.0.4"
   },
   "devDependencies": {
-    "@farmfe/cli": "^1.0.2",
-    "@farmfe/core": "^1.2.4",
-    "@farmfe/js-plugin-postcss": "^1.7.0",
-    "@farmfe/js-plugin-solid": "^2.7.0",
-    "autoprefixer": "^10.4.19",
-    "solid-refresh": "^0.7.5",
-    "tailwindcss": "^3.4.4",
-    "vite-plugin-solid": "^2.10.2"
+    "@rsbuild/core": "^1.0.1",
+    "@rsbuild/plugin-babel": "^1.0.1",
+    "@rsbuild/plugin-solid": "^1.0.1",
+    "autoprefixer": "^10.4.20",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.5.2"
   }
 }
